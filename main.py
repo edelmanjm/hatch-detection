@@ -41,15 +41,10 @@ def find_hatches(source, draw=False):
     if draw:
         cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
 
-    # Warp the image and centers back to the original
-    inverse_warp = cv2.invert(warp)[1]
-    if len(contours) > 0:
-        centers_warped = cv2.perspectiveTransform(numpy.asarray([centers], dtype='float32'), inverse_warp)
-    else:
-        centers_warped = numpy.asarray([[[]]])
-    img = cv2.warpPerspective(img, inverse_warp, (w, h))
+    # Warp the image and back to the original
+    img = cv2.warpPerspective(img, cv2.invert(warp)[1], (w, h))
 
-    return img, contours, centers_warped
+    return img, contours, centers
 
 
 if __name__ == "__main__":
@@ -62,10 +57,7 @@ if __name__ == "__main__":
 
     while True:
         _, raw = cap.read()
-        processed, contours, centers = find_hatches(raw, False)
-        for center in centers[0]:
-            if len(center) > 0:
-                cv2.drawMarker(processed, (center[0], center[1]), (0, 0, 255), cv2.MARKER_CROSS, 25, 2)
+        processed, contours, centers = find_hatches(raw, True)
         cv2.imshow('my webcam', processed)
         if cv2.waitKey(1) == 27:
             break  # esc to quit
