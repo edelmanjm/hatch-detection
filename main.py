@@ -2,7 +2,7 @@ import cv2
 import grip
 import numpy
 import math
-import networktables
+from networktables import NetworkTables
 
 w = 640
 h = 360
@@ -14,7 +14,7 @@ angle = 23.5
 inset = h * math.tan(math.radians(angle))
 diagonal = h / math.cos(math.radians(angle))
 # vertwarp = 1 / math.tan(math.radians(angle))
-vertwarp = 1.2
+vertwarp = 1.1
 warp = cv2.getPerspectiveTransform(
     # numpy.float32([[inset, 0], [w - inset, 0], [0, h], [w, h]]),
     # numpy.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
@@ -42,7 +42,7 @@ def find_hatches(source, draw=False):
         cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
 
     # Warp the image and back to the original
-    img = cv2.warpPerspective(img, cv2.invert(warp)[1], (w, h))
+    # img = cv2.warpPerspective(img, cv2.invert(warp)[1], (w, h))
 
     return img, contours, centers
 
@@ -55,11 +55,16 @@ if __name__ == "__main__":
     cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1.0)
     cap.set(cv2.CAP_PROP_EXPOSURE, 5)
 
+    NetworkTables.initialize()
+    sd = NetworkTables.getTable("SmartDashboard")
+
     while True:
         _, raw = cap.read()
         processed, contours, centers = find_hatches(raw, True)
         cv2.imshow('my webcam', processed)
         if cv2.waitKey(1) == 27:
             break  # esc to quit
+
+        sd.putNumberArray("Hatch Centers", [item for sublist in centers for item in sublist])
 
     cv2.destroyAllWindows()
