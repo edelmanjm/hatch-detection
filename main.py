@@ -4,8 +4,8 @@ import numpy
 import math
 from networktables import NetworkTables
 
-w = 640
-h = 360
+w = 320
+h = 180
 
 grip_pipeline = grip.GripPipeline()
 
@@ -42,29 +42,35 @@ def find_hatches(source, draw=False):
         cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
 
     # Warp the image and back to the original
-    # img = cv2.warpPerspective(img, cv2.invert(warp)[1], (w, h))
+    img = cv2.warpPerspective(img, cv2.invert(warp)[1], (w, h))
 
     return img, contours, centers
 
 
 if __name__ == "__main__":
 
+    print("Starting")
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
     cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1.0)
     cap.set(cv2.CAP_PROP_EXPOSURE, 5)
 
-    NetworkTables.initialize()
-    sd = NetworkTables.getTable("SmartDashboard")
+    print("Starting NetworkTables")
+    NetworkTables.initialize(server='roborio-1540-frc.local')
+    sd = NetworkTables.getTable("hatch-cam")
 
     while True:
         _, raw = cap.read()
-        processed, contours, centers = find_hatches(raw, True)
-        cv2.imshow('my webcam', processed)
+        processed, contours, centers = find_hatches(raw, False)
+        if len(centers) > 0:
+            print(centers)
+        else:
+            print("None")
+        # cv2.imshow('my webcam', processed)
         if cv2.waitKey(1) == 27:
             break  # esc to quit
 
-        sd.putNumberArray("Hatch Centers", [item for sublist in centers for item in sublist])
+        sd.putNumberArray("hatch-centers", [item for sublist in centers for item in sublist])
 
     cv2.destroyAllWindows()
