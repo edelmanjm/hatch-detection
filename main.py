@@ -3,9 +3,11 @@ import grip
 import numpy
 import math
 from networktables import NetworkTables
+from mjpegserver import ThreadedHTTPServer, CamHandler
+import threading
 
-w = 320
-h = 180
+w = 1280
+h = 720
 
 grip_pipeline = grip.GripPipeline()
 
@@ -60,16 +62,22 @@ if __name__ == "__main__":
     NetworkTables.initialize(server='roborio-1540-frc.local')
     sd = NetworkTables.getTable("hatch-cam")
 
-    while True:
+    run = True
+    processed = None
+    print("Starting MJPEG stream")
+    server = ThreadedHTTPServer(('127.0.0.1', 8080), CamHandler, lambda *args: None, lambda *args: None, lambda *args: processed if processed is not None else numpy.zeros((h, w, 3), numpy.uint8))
+    threading.Thread(target=server.serve_forever).start()
+
+    while run:
         _, raw = cap.read()
-        processed, contours, centers = find_hatches(raw, False)
+        processed, contours, centers = find_hatches(raw, True)
         if len(centers) > 0:
             print(centers)
         else:
             print("None")
         # cv2.imshow('my webcam', processed)
         if cv2.waitKey(1) == 27:
-            break  # esc to quit
+            run = False  # esc to quit
 
         sd.putNumberArray("hatch-centers", [item for sublist in centers for item in sublist])
 
