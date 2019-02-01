@@ -1,15 +1,13 @@
 import cv2
-import grip
+from grip import filterhatchpanel
 import numpy
 import math
-from networktables import NetworkTables
-from mjpegserver import ThreadedHTTPServer, CamHandler
-import threading
+from muhthing import MuhThing
 
-w = 1280
-h = 720
+w = 1920
+h = 1080
 
-grip_pipeline = grip.GripPipeline()
+grip_pipeline = filterhatchpanel.GripPipeline()
 
 # degrees
 angle = 23.5
@@ -51,34 +49,4 @@ def find_hatches(source, draw=False):
 
 if __name__ == "__main__":
 
-    print("Starting")
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
-    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1.0)
-    cap.set(cv2.CAP_PROP_EXPOSURE, 5)
-
-    print("Starting NetworkTables")
-    NetworkTables.initialize(server='roborio-1540-frc.local')
-    sd = NetworkTables.getTable("hatch-cam")
-
-    run = True
-    processed = None
-    print("Starting MJPEG stream")
-    server = ThreadedHTTPServer(('127.0.0.1', 8080), CamHandler, lambda *args: None, lambda *args: None, lambda *args: processed if processed is not None else numpy.zeros((h, w, 3), numpy.uint8))
-    threading.Thread(target=server.serve_forever).start()
-
-    while run:
-        _, raw = cap.read()
-        processed, contours, centers = find_hatches(raw, True)
-        if len(centers) > 0:
-            print(centers)
-        else:
-            print("None")
-        # cv2.imshow('my webcam', processed)
-        if cv2.waitKey(1) == 27:
-            run = False  # esc to quit
-
-        sd.putNumberArray("hatch-centers", [item for sublist in centers for item in sublist])
-
-    cv2.destroyAllWindows()
+    MuhThing(find_hatches, "/hatch-centers", lambda: True).start()
