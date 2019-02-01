@@ -18,6 +18,17 @@ class MuhThing:
         self.cam_stream_port = cam_stream_port,
         self.draw_contours = draw_contours
 
+    def run(self, cap, sd):
+        while self.keep_alive():
+            _, raw = cap.read()
+            processed, contours, centers = self.contour_processor(raw, self.draw_contours)
+            if len(centers) > 0:
+                print(centers)
+            else:
+                print("None")
+
+            sd.putNumberArray(self.name + "/centers", [item for sublist in centers for item in sublist])
+
     def start(self):
         print("Starting")
 
@@ -38,13 +49,6 @@ class MuhThing:
                                             (self.width, self.height, 3), numpy.uint8))
             threading.Thread(target=server.serve_forever).start()
 
+        # FIXME OpenCV refuses to read images with multiprocessing, maybe look into that
         print("Starting main process")
-        while self.keep_alive():
-            _, raw = cap.read()
-            processed, contours, centers = self.contour_processor(raw, self.draw_contours)
-            if len(centers) > 0:
-                print(centers)
-            else:
-                print("None")
-
-            sd.putNumberArray(self.name + "/centers", [item for sublist in centers for item in sublist])
+        threading.Thread(target=self.run, args=(cap, sd)).start()
