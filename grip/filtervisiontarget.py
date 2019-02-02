@@ -11,36 +11,43 @@ class GripPipeline:
     def __init__(self):
         """initializes all values to presets or None if need to be set
         """
-        self.__hsv_threshold_hue = [42.086330935251794, 73.0390492359932]
-        self.__hsv_threshold_saturation = [183.45323741007192, 255.0]
-        self.__hsv_threshold_value = [167.40107913669064, 255.0]
+        self.mask_output = None
+
+        self.__hsv_threshold_input = self.mask_output
+        self.__hsv_threshold_hue = [53.417266187050345, 74.56706281833615]
+        self.__hsv_threshold_saturation = [126.12410071942446, 255.0]
+        self.__hsv_threshold_value = [98.60611510791367, 255.0]
         self.hsv_threshold_output = None
 
         self.__find_contours_input = self.hsv_threshold_output
-        self.__find_contours_external_only = False
+        self.__find_contours_external_only = True
         self.find_contours_output = None
 
         self.__filter_contours_contours = self.find_contours_output
-        self.__filter_contours_min_area = 0
-        self.__filter_contours_min_perimeter = 0
-        self.__filter_contours_min_width = 0
-        self.__filter_contours_max_width = 1000
-        self.__filter_contours_min_height = 0
-        self.__filter_contours_max_height = 1000
-        self.__filter_contours_solidity = [0, 100]
-        self.__filter_contours_max_vertices = 1000000
-        self.__filter_contours_min_vertices = 0
-        self.__filter_contours_min_ratio = 0
-        self.__filter_contours_max_ratio = 20.0
+        self.__filter_contours_min_area = 10.0
+        self.__filter_contours_min_perimeter = 0.0
+        self.__filter_contours_min_width = 0.0
+        self.__filter_contours_max_width = 1000.0
+        self.__filter_contours_min_height = 0.0
+        self.__filter_contours_max_height = 1000.0
+        self.__filter_contours_solidity = [0.0, 100]
+        self.__filter_contours_max_vertices = 50.0
+        self.__filter_contours_min_vertices = 0.0
+        self.__filter_contours_min_ratio = 0.25
+        self.__filter_contours_max_ratio = 4.0
         self.filter_contours_output = None
 
-
-    def process(self, source0):
+    def process(self, source0, mask):
         """
         Runs the pipeline and sets all outputs to new values.
         """
+                    # Step Mask0:
+        # self.__mask_input = source0
+        # self.__mask_mask = mask
+        # (self.mask_output) = self.__mask(self.__mask_input, self.__mask_mask)
+        self.mask_output = source0
                     # Step HSV_Threshold0:
-        self.__hsv_threshold_input = source0
+        self.__hsv_threshold_input = self.mask_output
         (self.hsv_threshold_output) = self.__hsv_threshold(self.__hsv_threshold_input, self.__hsv_threshold_hue, self.__hsv_threshold_saturation, self.__hsv_threshold_value)
                     # Step Find_Contours0:
         self.__find_contours_input = self.hsv_threshold_output
@@ -48,8 +55,20 @@ class GripPipeline:
                     # Step Filter_Contours0:
         self.__filter_contours_contours = self.find_contours_output
         (self.filter_contours_output) = self.__filter_contours(self.__filter_contours_contours, self.__filter_contours_min_area, self.__filter_contours_min_perimeter, self.__filter_contours_min_width, self.__filter_contours_max_width, self.__filter_contours_min_height, self.__filter_contours_max_height, self.__filter_contours_solidity, self.__filter_contours_max_vertices, self.__filter_contours_min_vertices, self.__filter_contours_min_ratio, self.__filter_contours_max_ratio)
+
         return self.filter_contours_output
-            
+                
+    @staticmethod
+    def __mask(input, mask):
+        """Filter out an area of an image using a binary mask.
+        Args:
+            input: A three channel numpy.ndarray.
+            mask: A black and white numpy.ndarray.
+        Returns:
+            A three channel numpy.ndarray.
+        """
+        return cv2.bitwise_and(input, input, mask=mask)
+
     @staticmethod
     def __hsv_threshold(input, hue, sat, val):
         """Segment an image based on hue, saturation, and value ranges.
@@ -62,7 +81,7 @@ class GripPipeline:
             A black and white numpy.ndarray.
         """
         out = cv2.cvtColor(input, cv2.COLOR_BGR2HSV)
-        return cv2.inRange(out, (hue[0], sat[0], val[0]),  (hue[1], sat[1], val[1]))
+        return cv2.inRange(out, (hue[0], sat[0], val[0]),  (hue[1], sat[1], val[1]))\
 
     @staticmethod
     def __find_contours(input, external_only):

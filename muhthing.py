@@ -6,9 +6,9 @@ import threading
 
 
 class MuhThing:
-    def __init__(self, contour_processor, name, keep_alive, camera_port=0, width=1920, height=1080, cam_stream=False,
+    def __init__(self, contour_pipeline, name, keep_alive, camera_port=0, width=1920, height=1080, cam_stream=False,
                  cam_stream_port=8080, draw_contours=False):
-        self.contour_processor = contour_processor
+        self.contour_pipeline = contour_pipeline
         self.name = name
         self.keep_alive = keep_alive
         self.camera_port = camera_port
@@ -21,7 +21,7 @@ class MuhThing:
     def run(self, cap, sd):
         while self.keep_alive():
             _, raw = cap.read()
-            processed, contours, centers = self.contour_processor(raw, self.draw_contours)
+            processed, contours, centers = self.contour_pipeline(raw, self.draw_contours)
             if len(centers) > 0:
                 print(centers)
             else:

@@ -3,6 +3,7 @@ from grip import filterhatchpanel, filtervisiontarget
 import numpy
 import math
 from muhthing import MuhThing
+import processors
 
 w = 1920
 h = 1080
@@ -23,6 +24,8 @@ warp = cv2.getPerspectiveTransform(
     numpy.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
 )
 
+robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
+
 
 def find_hatches(source, draw=False):
     # Flatten the image
@@ -30,16 +33,9 @@ def find_hatches(source, draw=False):
 
     # Detect the panels and find the centers
     contours = hatch_panel_pipeline.process(img)
-    centers = []
-    for contour in contours:
-        br_x, br_y, br_w, br_h = cv2.boundingRect(contour)
-        center_x = br_x + br_w / 2
-        center_y = br_y + br_h / 2
-        centers.append([center_x, center_y])
-        if draw:
-            cv2.drawMarker(img, (int(center_x), int(center_y)), (0, 0, 255), cv2.MARKER_CROSS, 25, 2)
+    centers = processors.find_bounding_centers(contours)
     if draw:
-        cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
+        processors.draw_contours_and_centers(img, contours, centers)
 
     # Warp the image and back to the original
     img = cv2.warpPerspective(img, cv2.invert(warp)[1], (w, h))
@@ -48,21 +44,13 @@ def find_hatches(source, draw=False):
 
 
 def find_vision_target(source, draw=False):
-    img = source
 
-    contours = vision_target_pipeline.process(img)
-    centers = []
-    for contour in contours:
-        br_x, br_y, br_w, br_h = cv2.boundingRect(contour)
-        center_x = br_x + br_w / 2
-        center_y = br_y + br_h / 2
-        centers.append([center_x, center_y])
-        if draw:
-            cv2.drawMarker(img, (int(center_x), int(center_y)), (0, 0, 255), cv2.MARKER_CROSS, 25, 2)
+    contours = vision_target_pipeline.process(source, robot_mask)
+    centers = processors.find_bounding_centers(contours)
     if draw:
-        cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
+        processors.draw_contours_and_centers(source, contours, centers)
 
-    return img, contours, centers
+    return source, contours, centers
 
 
 if __name__ == "__main__":
