@@ -13,5 +13,5 @@ def find_bounding_centers(contours):
 
 def draw_contours_and_centers(img, contours, centers):
     for center in centers:
-        cv2.drawMarker(img, (center[0], center[1]), (0, 0, 255), cv2.MARKER_CROSS, 25, 2)
+        cv2.drawMarker(img, (int(center[0]), int(center[1])), (0, 0, 255), cv2.MARKER_CROSS, 25, 2)
     cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
