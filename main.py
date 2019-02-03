@@ -1,12 +1,20 @@
+import time
+
 import cv2
 from grip import filterhatchpanel, filtervisiontarget
 import numpy
 import math
 from muhthing import MuhThing
 import processors
+import os
+from pycallgraph import PyCallGraph
+from pycallgraph.output import GraphvizOutput
+from pycallgraph import Config
+import sys
 
-w = 1920
-h = 1080
+w = 320
+h = 240
+framerate = 30
 
 hatch_panel_pipeline = filterhatchpanel.GripPipeline()
 vision_target_pipeline = filtervisiontarget.GripPipeline()
@@ -47,13 +55,86 @@ def find_vision_target(source, draw=False):
 
     contours = vision_target_pipeline.process(source, robot_mask)
     centers = processors.find_bounding_centers(contours)
-    if draw:
-        processors.draw_contours_and_centers(source, contours, centers)
 
-    return source, contours, centers
+    # Find the two centers closed to the center of the image
+    closest_distance = None
+    closest_centers = [None, None]
+    for center in centers:
+        distance = math.sqrt((center[0] - w / 2)**2 + (center[1] - h / 2)**2)
+        if closest_centers[0] is None or distance < closest_distance:
+            closest_centers[1] = closest_centers[0]
+            closest_centers[0] = center
+            closest_distance = distance
+
+    if closest_centers[1] is not None:
+        if draw:
+            processors.draw_contours_and_centers(source, contours, closest_centers)
+        return source, contours, closest_centers
+    else:
+        return source, contours, []
+
+
+def do_nothing(source, draw=False):
+    return source, [], []
+
+
+def main():
+
+    # FIXME OpenCV refuses to read images with multiprocessing, maybe look into that
+
+    print("Starting")
+
+    thing = MuhThing(find_vision_target, "nothing", [w, h], cam_stream=True, draw_contours=True)
+    thing.start()
+
+
+    print("Opening camera")
+    if os.uname()[4] == 'armv7l':
+        print("Using picamera")
+        from picamera.array import PiRGBArray
+        from picamera import PiCamera
+
+        # import time
+        camera = PiCamera()
+        camera.resolution = (w, h)
+        camera.framerate = framerate
+        camera.exposure_mode = 'off'
+        camera.shutter_speed = 9000
+
+        rawCapture = PiRGBArray(camera, size=(w, h))
+
+        # allow the camera to warmup
+        time.sleep(0.1)
+
+        count = 0
+        # capture frames from the camera
+        for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+            thing.process_frame(frame.array)
+
+            # clear the stream in preparation for the next frame
+            rawCapture.truncate(0)
+
+            count += 1
+
+            if count > 500:
+                break
+    else:
+        print("Using cv2.VideoCapture")
+        cap = cv2.VideoCapture(0)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+
+        time.sleep(1)
+        try:
+            while True:
+                _, raw = cap.read()
+                thing.process_frame(raw)
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":
+    config = Config(max_depth=6)
 
-    # MuhThing(find_hatches, "/hatch-centers", lambda: True).start()
-    MuhThing(find_vision_target, "/target-centers", lambda: True).start()
+    with PyCallGraph(output=GraphvizOutput()):
+        main()

@@ -1,54 +1,50 @@
-import cv2
 import numpy
 from networktables import NetworkTables
 from mjpegserver import ThreadedHTTPServer, CamHandler
 import threading
+import time
 
 
 class MuhThing:
-    def __init__(self, contour_pipeline, name, keep_alive, camera_port=0, width=1920, height=1080, cam_stream=False,
-                 cam_stream_port=8080, draw_contours=False):
+    def __init__(self, contour_pipeline, name, dimensions, cam_stream=False, cam_stream_port=9001,
+                 draw_contours=False):
         self.contour_pipeline = contour_pipeline
         self.name = name
-        self.keep_alive = keep_alive
-        self.camera_port = camera_port
-        self.width = width
-        self.height = height
+        self.dimensions = dimensions
         self.cam_stream = cam_stream
-        self.cam_stream_port = cam_stream_port,
+        self.cam_stream_port = cam_stream_port
         self.draw_contours = draw_contours
+        self.frame = numpy.zeros((dimensions[1], dimensions[0], 3), numpy.uint8)
 
-    def run(self, cap, sd):
-        while self.keep_alive():
-            _, raw = cap.read()
-            processed, contours, centers = self.contour_pipeline(raw, self.draw_contours)
-            if len(centers) > 0:
-                print(centers)
-            else:
-                print("None")
+    def process_frame(self, raw):
+        start_time = time.time()
+        processed, contours, centers = self.contour_pipeline(raw, self.draw_contours)
+        self.frame = processed
 
-            sd.putNumberArray(self.name + "/centers", [item for sublist in centers for item in sublist])
+        scaled_centers = []
+
+        if len(centers) > 0:
+            # Scale the centers into -1.0 to 1.0
+            for center in centers:
+                scaled_centers.append(
+                    [center[0] / self.dimensions[0] * 2 - 1, center[1] / self.dimensions[1] * 2 - 1])
+
+            # print(scaled_centers)
+        else:
+            # print("None")
+            pass
+
+        self.sd.putNumberArray(self.name + "/centers", [item for sublist in scaled_centers for item in sublist])
+        print(time.time() - start_time)
 
     def start(self):
-        print("Starting")
-
-        print("Opening camera")
-        cap = cv2.VideoCapture(self.camera_port)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
 
         print("Starting NetworkTables")
         NetworkTables.initialize(server='roborio-1540-frc.local')
-        sd = NetworkTables.getTable(self.name)
+        self.sd = NetworkTables.getTable(self.name)
 
-        processed = None
         if self.cam_stream:
             print("Starting MJPEG stream")
-            server = ThreadedHTTPServer(('127.0.0.1', self.cam_stream_port), CamHandler, lambda *args: None, lambda *args: None,
-                                        lambda *args: processed if processed is not None else numpy.zeros(
-                                            (self.width, self.height, 3), numpy.uint8))
+            server = ThreadedHTTPServer(('', self.cam_stream_port), CamHandler, lambda *args: None, lambda *args: None,
+                                        lambda: self.frame)
             threading.Thread(target=server.serve_forever).start()
-
-        # FIXME OpenCV refuses to read images with multiprocessing, maybe look into that
-        print("Starting main process")
-        threading.Thread(target=self.run, args=(cap, sd)).start()
