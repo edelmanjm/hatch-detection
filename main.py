@@ -7,13 +7,13 @@ import math
 from muhthing import MuhThing
 import processors
 import os
-from pycallgraph import PyCallGraph
-from pycallgraph.output import GraphvizOutput
-from pycallgraph import Config
+# from pycallgraph import PyCallGraph
+# from pycallgraph.output import GraphvizOutput
+# from pycallgraph import Config
 import sys
 
-w = 320
-h = 240
+w = 256
+h = 144
 framerate = 30
 
 hatch_panel_pipeline = filterhatchpanel.GripPipeline()
@@ -32,7 +32,13 @@ warp = cv2.getPerspectiveTransform(
     numpy.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
 )
 
+K=numpy.array([[794.5616321293361, 0.0, 963.0391357869047], [0.0, 794.9001170024184, 498.968261322781], [0.0, 0.0, 1.0]])
+D=numpy.array([[-0.019215744220979738], [-0.022168383678588813], [0.018999857407644722], [-0.003693599912847022]])
+
 robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
+
+# stream_url = "http://10.15.40.202:9001/cam.mjpg"
+stream_url = ""
 
 
 def find_hatches(source, draw=False):
@@ -61,7 +67,7 @@ def find_vision_target(source, draw=False):
     closest_centers = [None, None]
     for center in centers:
         distance = math.sqrt((center[0] - w / 2)**2 + (center[1] - h / 2)**2)
-        if closest_centers[0] is None or distance < closest_distance:
+        if closest_centers[1] is None or distance < closest_distance:
             closest_centers[1] = closest_centers[0]
             closest_centers[0] = center
             closest_distance = distance
@@ -69,6 +75,7 @@ def find_vision_target(source, draw=False):
     if closest_centers[1] is not None:
         if draw:
             processors.draw_contours_and_centers(source, contours, closest_centers)
+
         return source, contours, closest_centers
     else:
         return source, contours, []
@@ -84,7 +91,7 @@ def main():
 
     print("Starting")
 
-    thing = MuhThing(find_vision_target, "nothing", [w, h], cam_stream=True, draw_contours=True)
+    thing = MuhThing(find_vision_target, "nothing", [w, h], camera_matrix=K, dist_coefficients=D, cam_stream=True, draw_contours=True)
     thing.start()
 
 
@@ -120,21 +127,28 @@ def main():
                 break
     else:
         print("Using cv2.VideoCapture")
-        cap = cv2.VideoCapture(0)
+        if stream_url == "":
+            cap = cv2.VideoCapture(0)
+        else:
+            cap = cv2.VideoCapture(stream_url)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
 
         time.sleep(1)
+        count = 0
         try:
-            while True:
+            while count<200:
                 _, raw = cap.read()
                 thing.process_frame(raw)
+                count += 1
         except KeyboardInterrupt:
             pass
 
 
 if __name__ == "__main__":
-    config = Config(max_depth=6)
+    # config = Config(max_depth=6)
+    #
+    # with PyCallGraph(output=GraphvizOutput()):
+    #     main()
 
-    with PyCallGraph(output=GraphvizOutput()):
-        main()
+    main()
