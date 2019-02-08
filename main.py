@@ -1,13 +1,23 @@
+import time
+
 import cv2
-import grip
+from grip import filterhatchpanel, filtervisiontarget
 import numpy
 import math
-from networktables import NetworkTables
+from muhthing import MuhThing
+import processors
+import os
+# from pycallgraph import PyCallGraph
+# from pycallgraph.output import GraphvizOutput
+# from pycallgraph import Config
+import sys
 
-w = 320
-h = 180
+w = 256
+h = 144
+framerate = 30
 
-grip_pipeline = grip.GripPipeline()
+hatch_panel_pipeline = filterhatchpanel.GripPipeline()
+vision_target_pipeline = filtervisiontarget.GripPipeline()
 
 # degrees
 angle = 23.5
@@ -22,24 +32,24 @@ warp = cv2.getPerspectiveTransform(
     numpy.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
 )
 
+K=numpy.array([[794.5616321293361, 0.0, 963.0391357869047], [0.0, 794.9001170024184, 498.968261322781], [0.0, 0.0, 1.0]])
+D=numpy.array([[-0.019215744220979738], [-0.022168383678588813], [0.018999857407644722], [-0.003693599912847022]])
+
+robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
+
+# stream_url = "http://10.15.40.202:9001/cam.mjpg"
+stream_url = ""
+
 
 def find_hatches(source, draw=False):
     # Flatten the image
     img = cv2.warpPerspective(source, warp, (w, int(h * vertwarp)))
 
     # Detect the panels and find the centers
-    contours = grip_pipeline.process(img)
-    centers = []
-    for contour in contours:
-        cv2.moments(contour)
-        br_x, br_y, br_w, br_h = cv2.boundingRect(contour)
-        center_x = br_x + br_w / 2
-        center_y = br_y + br_h / 2
-        centers.append([center_x, center_y])
-        if draw:
-            cv2.drawMarker(img, (int(center_x), int(center_y)), (0, 0, 255), cv2.MARKER_CROSS, 25, 2)
+    contours = hatch_panel_pipeline.process(img)
+    centers = processors.find_bounding_centers(contours)
     if draw:
-        cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
+        processors.draw_contours_and_centers(img, contours, centers)
 
     # Warp the image and back to the original
     img = cv2.warpPerspective(img, cv2.invert(warp)[1], (w, h))
@@ -47,30 +57,98 @@ def find_hatches(source, draw=False):
     return img, contours, centers
 
 
-if __name__ == "__main__":
+def find_vision_target(source, draw=False):
+
+    contours = vision_target_pipeline.process(source, robot_mask)
+    centers = processors.find_bounding_centers(contours)
+
+    # Find the two centers closed to the center of the image
+    closest_distance = None
+    closest_centers = [None, None]
+    for center in centers:
+        distance = math.sqrt((center[0] - w / 2)**2 + (center[1] - h / 2)**2)
+        if closest_centers[1] is None or distance < closest_distance:
+            closest_centers[1] = closest_centers[0]
+            closest_centers[0] = center
+            closest_distance = distance
+
+    if closest_centers[1] is not None:
+        if draw:
+            processors.draw_contours_and_centers(source, contours, closest_centers)
+
+        return source, contours, closest_centers
+    else:
+        return source, contours, []
+
+
+def do_nothing(source, draw=False):
+    return source, [], []
+
+
+def main():
+
+    # FIXME OpenCV refuses to read images with multiprocessing, maybe look into that
 
     print("Starting")
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
-    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1.0)
-    cap.set(cv2.CAP_PROP_EXPOSURE, 5)
 
-    print("Starting NetworkTables")
-    NetworkTables.initialize(server='roborio-1540-frc.local')
-    sd = NetworkTables.getTable("hatch-cam")
+    thing = MuhThing(find_vision_target, "nothing", [w, h], camera_matrix=K, dist_coefficients=D, cam_stream=True, draw_contours=True)
+    thing.start()
 
-    while True:
-        _, raw = cap.read()
-        processed, contours, centers = find_hatches(raw, False)
-        if len(centers) > 0:
-            print(centers)
+
+    print("Opening camera")
+    if os.uname()[4] == 'armv7l':
+        print("Using picamera")
+        from picamera.array import PiRGBArray
+        from picamera import PiCamera
+
+        # import time
+        camera = PiCamera()
+        camera.resolution = (w, h)
+        camera.framerate = framerate
+        camera.exposure_mode = 'off'
+        camera.shutter_speed = 9000
+
+        rawCapture = PiRGBArray(camera, size=(w, h))
+
+        # allow the camera to warmup
+        time.sleep(0.1)
+
+        count = 0
+        # capture frames from the camera
+        for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+            thing.process_frame(frame.array)
+
+            # clear the stream in preparation for the next frame
+            rawCapture.truncate(0)
+
+            count += 1
+
+            if count > 500:
+                break
+    else:
+        print("Using cv2.VideoCapture")
+        if stream_url == "":
+            cap = cv2.VideoCapture(0)
         else:
-            print("None")
-        # cv2.imshow('my webcam', processed)
-        if cv2.waitKey(1) == 27:
-            break  # esc to quit
+            cap = cv2.VideoCapture(stream_url)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
 
-        sd.putNumberArray("hatch-centers", [item for sublist in centers for item in sublist])
+        time.sleep(1)
+        count = 0
+        try:
+            while count<200:
+                _, raw = cap.read()
+                thing.process_frame(raw)
+                count += 1
+        except KeyboardInterrupt:
+            pass
 
-    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    # config = Config(max_depth=6)
+    #
+    # with PyCallGraph(output=GraphvizOutput()):
+    #     main()
+
+    main()
