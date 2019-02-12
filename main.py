@@ -12,9 +12,11 @@ import os
 # from pycallgraph import Config
 import sys
 
-w = 256
-h = 144
+w = 1440
+h = 1080
 framerate = 30
+low_res_ratio = 1/4
+crop_margin = w * .5
 
 hatch_panel_pipeline = filterhatchpanel.GripPipeline()
 vision_target_pipeline = filtervisiontarget.GripPipeline()
@@ -37,8 +39,8 @@ D=numpy.array([[-0.019215744220979738], [-0.022168383678588813], [0.018999857407
 
 robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
 
-# stream_url = "http://10.15.40.202:9001/cam.mjpg"
-stream_url = ""
+stream_url = "http://10.15.40.202:9001/cam.mjpg"
+# stream_url = ""
 
 
 def find_hatches(source, draw=False):
@@ -59,26 +61,40 @@ def find_hatches(source, draw=False):
 
 def find_vision_target(source, draw=False):
 
-    contours = vision_target_pipeline.process(source, robot_mask)
-    centers = processors.find_bounding_centers(contours)
+    low_res_dimensions = (int(round(w * low_res_ratio)), int(round(h * low_res_ratio)))
+    # TODO apply robot mask
+    initial_contours = vision_target_pipeline.process(cv2.resize(source, low_res_dimensions), None)
+
+    bounding_rects = processors.find_bounding_rects(initial_contours)
+    intial_centers = processors.find_bounding_centers(bounding_rects)
 
     # Find the two centers closed to the center of the image
     closest_distance = None
-    closest_centers = [None, None]
-    for center in centers:
-        distance = math.sqrt((center[0] - w / 2)**2 + (center[1] - h / 2)**2)
-        if closest_centers[1] is None or distance < closest_distance:
-            closest_centers[1] = closest_centers[0]
-            closest_centers[0] = center
+    closest_bounding_rects = [None, None]
+    for i, center in enumerate(intial_centers):
+        distance = math.sqrt((center[0] - low_res_dimensions[0] / 2)**2 + (center[1] - low_res_dimensions[1] / 2)**2)
+        if closest_bounding_rects[1] is None or distance < closest_distance:
+            closest_bounding_rects[1] = closest_bounding_rects[0]
+            closest_bounding_rects[0] = bounding_rects[i]
             closest_distance = distance
 
-    if closest_centers[1] is not None:
-        if draw:
-            processors.draw_contours_and_centers(source, contours, closest_centers)
+    if closest_bounding_rects[1] is not None:
 
-        return source, contours, closest_centers
+        x0 = int(round(min(closest_bounding_rects[0][0], closest_bounding_rects[1][0]) / low_res_dimensions[0] * w - crop_margin))
+        x1 = int(round(max(closest_bounding_rects[0][0], closest_bounding_rects[1][0]) / low_res_dimensions[0] * w + crop_margin))
+        y0 = int(round(min(closest_bounding_rects[0][1], closest_bounding_rects[1][1]) / low_res_dimensions[1] * h - crop_margin))
+        y1 = int(round(max(closest_bounding_rects[0][1], closest_bounding_rects[1][1]) / low_res_dimensions[1] * h + crop_margin))
+
+        # TODO mask of parts around the targets
+        final_contours = vision_target_pipeline.process(source[y0:y1, x0:x1], None)
+        final_centers = processors.find_bounding_centers(processors.find_bounding_rects(final_contours))
+
+        if draw:
+            processors.draw_contours_and_centers(source, final_contours, final_centers)
+
+        return source, final_contours, final_centers
     else:
-        return source, contours, []
+        return source, [], []
 
 
 def do_nothing(source, draw=False):
