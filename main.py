@@ -16,7 +16,7 @@ w = 1440
 h = 1080
 framerate = 30
 low_res_ratio = 1/4
-crop_margin = w * .5
+crop_margin = w * .05
 
 hatch_panel_pipeline = filterhatchpanel.GripPipeline()
 vision_target_pipeline = filtervisiontarget.GripPipeline()
@@ -80,19 +80,36 @@ def find_vision_target(source, draw=False):
 
     if closest_bounding_rects[1] is not None:
 
-        x0 = int(round(min(closest_bounding_rects[0][0], closest_bounding_rects[1][0]) / low_res_dimensions[0] * w - crop_margin))
-        x1 = int(round(max(closest_bounding_rects[0][0], closest_bounding_rects[1][0]) / low_res_dimensions[0] * w + crop_margin))
-        y0 = int(round(min(closest_bounding_rects[0][1], closest_bounding_rects[1][1]) / low_res_dimensions[1] * h - crop_margin))
-        y1 = int(round(max(closest_bounding_rects[0][1], closest_bounding_rects[1][1]) / low_res_dimensions[1] * h + crop_margin))
+        x0 = min(closest_bounding_rects[0][0], closest_bounding_rects[1][0]) / low_res_dimensions[0] * w - crop_margin
+        x1 = max(closest_bounding_rects[0][0] + closest_bounding_rects[0][2], closest_bounding_rects[1][0] + closest_bounding_rects[1][2]) / low_res_dimensions[0] * w + crop_margin
+        y0 = min(closest_bounding_rects[0][1], closest_bounding_rects[1][1]) / low_res_dimensions[1] * h - crop_margin
+        y1 = max(closest_bounding_rects[0][1] + closest_bounding_rects[0][3], closest_bounding_rects[1][1] + closest_bounding_rects[1][3]) / low_res_dimensions[1] * h + crop_margin
+
+        x0 = int(round(x0))
+        x1 = int(round(x1))
+        y0 = int(round(y0))
+        y1 = int(round(y1))
+
+        if x0 < 0:
+            x0 = 0
+        if x1 > w:
+            x1 = w
+        if y0 < 0:
+            y0 = 0
+        if y1 > h:
+            y1 = h
 
         # TODO mask of parts around the targets
-        final_contours = vision_target_pipeline.process(source[y0:y1, x0:x1], None)
+        masked = source[y0:y1, x0:x1]
+        final_contours = vision_target_pipeline.process(masked, None)
         final_centers = processors.find_bounding_centers(processors.find_bounding_rects(final_contours))
 
         if draw:
             processors.draw_contours_and_centers(source, final_contours, final_centers)
 
-        return source, final_contours, final_centers
+        return masked, [], []
+        # return masked, final_contours, final_centers
+        # return source, final_contours, final_centers
     else:
         return source, [], []
 
@@ -122,7 +139,7 @@ def main():
         camera.resolution = (w, h)
         camera.framerate = framerate
         camera.exposure_mode = 'off'
-        camera.shutter_speed = 9000
+        camera.shutter_speed = 7000
 
         rawCapture = PiRGBArray(camera, size=(w, h))
 
