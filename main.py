@@ -1,7 +1,7 @@
 import time
 
 import cv2
-from grip import filterhatchpanel, filtervisiontarget
+from grip import filterhatchpanel, filtervisiontarget, filtervisiontarget2
 import numpy
 import math
 from muhthing import MuhThing
@@ -10,16 +10,17 @@ import os
 # from pycallgraph import PyCallGraph
 # from pycallgraph.output import GraphvizOutput
 # from pycallgraph import Config
-import sys
 
 w = 1440
 h = 1080
+w_low = 180
+h_low = 135
 framerate = 30
-low_res_ratio = 1/4
-crop_margin = w * .05
+crop_margin = 10
 
 hatch_panel_pipeline = filterhatchpanel.GripPipeline()
-vision_target_pipeline = filtervisiontarget.GripPipeline()
+vision_target_pipeline_1 = filtervisiontarget.GripPipeline(w_low, h_low)
+vision_target_pipeline_2 = filtervisiontarget2.GripPipeline()
 
 # degrees
 angle = 23.5
@@ -61,29 +62,28 @@ def find_hatches(source, draw=False):
 
 def find_vision_target(source, draw=False):
 
-    low_res_dimensions = (int(round(w * low_res_ratio)), int(round(h * low_res_ratio)))
     # TODO apply robot mask
-    initial_contours = vision_target_pipeline.process(cv2.resize(source, low_res_dimensions), None)
+    first_contours = vision_target_pipeline_1.process(source)
 
-    bounding_rects = processors.find_bounding_rects(initial_contours)
-    intial_centers = processors.find_bounding_centers(bounding_rects)
+    first_bounding_rects = processors.find_bounding_rects(first_contours)
+    first_centers = processors.find_bounding_centers(first_bounding_rects)
 
     # Find the two centers closed to the center of the image
     closest_distance = None
     closest_bounding_rects = [None, None]
-    for i, center in enumerate(intial_centers):
-        distance = math.sqrt((center[0] - low_res_dimensions[0] / 2)**2 + (center[1] - low_res_dimensions[1] / 2)**2)
+    for i, center in enumerate(first_centers):
+        distance = math.sqrt((center[0] - w_low / 2)**2 + (center[1] - h_low / 2)**2)
         if closest_bounding_rects[1] is None or distance < closest_distance:
             closest_bounding_rects[1] = closest_bounding_rects[0]
-            closest_bounding_rects[0] = bounding_rects[i]
+            closest_bounding_rects[0] = first_bounding_rects[i]
             closest_distance = distance
 
     if closest_bounding_rects[1] is not None:
 
-        x0 = min(closest_bounding_rects[0][0], closest_bounding_rects[1][0]) / low_res_dimensions[0] * w - crop_margin
-        x1 = max(closest_bounding_rects[0][0] + closest_bounding_rects[0][2], closest_bounding_rects[1][0] + closest_bounding_rects[1][2]) / low_res_dimensions[0] * w + crop_margin
-        y0 = min(closest_bounding_rects[0][1], closest_bounding_rects[1][1]) / low_res_dimensions[1] * h - crop_margin
-        y1 = max(closest_bounding_rects[0][1] + closest_bounding_rects[0][3], closest_bounding_rects[1][1] + closest_bounding_rects[1][3]) / low_res_dimensions[1] * h + crop_margin
+        x0 = min(closest_bounding_rects[0][0], closest_bounding_rects[1][0]) / w_low * w - crop_margin
+        x1 = max(closest_bounding_rects[0][0] + closest_bounding_rects[0][2], closest_bounding_rects[1][0] + closest_bounding_rects[1][2]) / w_low * w + crop_margin
+        y0 = min(closest_bounding_rects[0][1], closest_bounding_rects[1][1]) / h_low * h - crop_margin
+        y1 = max(closest_bounding_rects[0][1] + closest_bounding_rects[0][3], closest_bounding_rects[1][1] + closest_bounding_rects[1][3]) / h_low * h + crop_margin
 
         x0 = int(round(x0))
         x1 = int(round(x1))
@@ -101,15 +101,23 @@ def find_vision_target(source, draw=False):
 
         # TODO mask of parts around the targets
         masked = source[y0:y1, x0:x1]
-        final_contours = vision_target_pipeline.process(masked, None)
-        final_centers = processors.find_bounding_centers(processors.find_bounding_rects(final_contours))
+        second_contours = vision_target_pipeline_2.process(masked, None)
+        second_centers = processors.find_bounding_centers(processors.find_bounding_rects(second_contours))
+
+        # Transform centers and contours so they're relative to the source image instead of the copped image
+        for contour in second_contours:
+            for point in contour:
+                point[0][0] += x0
+                point[0][1] += y0
+        for center in second_centers:
+            center[0] += x0
+            center[1] += y0
 
         if draw:
-            processors.draw_contours_and_centers(source, final_contours, final_centers)
+            processors.draw_contours_and_centers(source, second_contours, second_centers)
 
-        return masked, [], []
-        # return masked, final_contours, final_centers
-        # return source, final_contours, final_centers
+        # return masked, second_contours, second_centers
+        return source, second_contours, second_centers
     else:
         return source, [], []
 
@@ -176,6 +184,7 @@ def main():
                 count += 1
         except KeyboardInterrupt:
             pass
+        # thing.process_frame(cv2.imread("/Users/Jonathan/Desktop/big.jpg"))
 
 
 if __name__ == "__main__":
