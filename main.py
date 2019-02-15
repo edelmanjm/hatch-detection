@@ -149,6 +149,8 @@ def main():
         camera.framerate = framerate
         camera.exposure_mode = 'off'
         camera.shutter_speed = 7000
+        camera.awb_mode = 'off'
+        camera.awb_gains = (1.2, 1.9)
 
         rawCapture = PiRGBArray(camera, size=(w, h))
 
