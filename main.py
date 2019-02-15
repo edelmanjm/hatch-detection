@@ -11,10 +11,14 @@ import os
 # from pycallgraph.output import GraphvizOutput
 # from pycallgraph import Config
 
+# Aspect ratio must be the same
 w = 1440
 h = 1080
 w_low = 180
 h_low = 135
+w_max_process = w_low
+h_max_process = h_low
+
 framerate = 30
 crop_margin = 10
 
@@ -41,8 +45,8 @@ D=numpy.array([[-0.019215744220979738], [-0.022168383678588813], [0.018999857407
 
 robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
 
-# stream_url = "http://10.20.175.6:9001/cam.mjpg"
-stream_url = ""
+stream_url = "http://10.15.40.202:9001/cam.mjpg"
+# stream_url = ""
 
 
 def find_hatches(source, draw=False):
@@ -102,17 +106,26 @@ def find_vision_target(source, draw=False):
 
         # TODO mask of parts around the targets
         masked = source[y0:y1, x0:x1]
-        second_contours = vision_target_pipeline_2.process(masked, None)
+        max_process_limit_factor = 1
+        if y1 - y0 > h_max_process or x1 - x0 > w_max_process:
+            max_process_limit_factor = min(w_max_process / (x1 - x0), h_max_process / (y1 - y0))
+            second_image = cv2.resize(masked,
+                                      (int(round((x1 - x0) * max_process_limit_factor)),
+                                       int(round((y1 - y0) * max_process_limit_factor))),
+                                      interpolation=cv2.INTER_LINEAR)
+        else:
+            second_image = masked
+        second_contours = vision_target_pipeline_2.process(second_image, None)
         second_centers = processors.find_bounding_centers(processors.find_bounding_rects(second_contours))
 
         # Transform centers and contours so they're relative to the source image instead of the copped image
         for contour in second_contours:
             for point in contour:
-                point[0][0] += x0
-                point[0][1] += y0
+                point[0][0] = point[0][0] * (1 / max_process_limit_factor) + x0
+                point[0][1] = point[0][1] * (1 / max_process_limit_factor) + y0
         for center in second_centers:
-            center[0] += x0
-            center[1] += y0
+            center[0] = center[0] * (1 / max_process_limit_factor) + x0
+            center[1] = center[1] * (1 / max_process_limit_factor) + y0
 
         if draw:
             processors.draw_contours_and_centers(source, second_contours, second_centers)
