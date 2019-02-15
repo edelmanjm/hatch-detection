@@ -1,10 +1,13 @@
 import cv2
 
 
-def find_bounding_centers(contours):
+def find_bounding_rects(contours):
+    return [cv2.boundingRect(contour) for contour in contours]
+
+
+def find_bounding_centers(bounding_rects):
     centers = []
-    for contour in contours:
-        br_x, br_y, br_w, br_h = cv2.boundingRect(contour)
+    for br_x, br_y, br_w, br_h in bounding_rects:
         center_x = br_x + br_w / 2
         center_y = br_y + br_h / 2
         centers.append([center_x, center_y])
