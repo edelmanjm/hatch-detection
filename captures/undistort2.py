@@ -9,7 +9,7 @@ K=np.array([[1076.7148792467171, 0.0, 1298.9712963540678], [0.0, 1078.5150149838
 D=np.array([[-0.016205134569390902], [-0.02434305021164351], [0.024555436941429715], [-0.008590717479362648]])
 
 
-def undistort(img_path, balance=1.0, dim2=(1440, 1080), dim3=(1440, 1080)):
+def undistort(img_path, balance=1.0, dim2=(640, 480), dim3=(640, 480)):
     img = cv2.imread(img_path)
     dim1 = img.shape[:2][::-1]  #dim1 is the dimension of input image to un-distort
     assert dim1[0]/dim1[1] == DIM[0]/DIM[1], "Image to undistort needs to have same aspect ratio as the ones used in calibration"

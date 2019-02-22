@@ -45,7 +45,6 @@ class MuhThing:
                 # FIXME appears to not be normalizing the points now
                 cv2.undistortPoints(undistorted_centers, self.scaled_K, self.dist_coefficients, undistorted_centers, np.eye(3), self.new_K)
 
-            # FIXME remove
             # Scale the centers into -1.0 to 1.0
             for center in undistorted_centers[0]:
                 center[0] = center[0] / 1440 * 2 - 1

@@ -202,7 +202,6 @@ def main():
         # capture frames from the camera
         last_time = time.time()
         for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-            # FIXME Temporary hack-y hack
             thing.process_frame(frame.array)
 
             # clear the stream in preparation for the next frame
