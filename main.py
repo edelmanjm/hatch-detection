@@ -2,7 +2,7 @@ import time
 
 import cv2
 from grip import filterhatchpanel, filtervisiontarget, filtervisiontarget2
-import numpy
+import numpy as np
 import math
 from muhthing import MuhThing
 import processors
@@ -33,15 +33,15 @@ diagonal = h / math.cos(math.radians(angle))
 # vertwarp = 1 / math.tan(math.radians(angle))
 vertwarp = 1.1
 warp = cv2.getPerspectiveTransform(
-    # numpy.float32([[inset, 0], [w - inset, 0], [0, h], [w, h]]),
-    # numpy.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
-    numpy.float32([[0, 0], [w, 0], [-inset, h], [w + inset, h]]),
-    numpy.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
+    # np.float32([[inset, 0], [w - inset, 0], [0, h], [w, h]]),
+    # np.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
+    np.float32([[0, 0], [w, 0], [-inset, h], [w + inset, h]]),
+    np.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
 )
 
-scaled_K=numpy.array([[598.1749329148429, 0.0, 721.6507201967044], [0.0, 599.1750083243568, 516.6649311147231], [0.0, 0.0, 1.0]])
-new_K=numpy.array([[106.3916735637625, 0.0, 506.2592266493841], [0.0, 106.56954744421695, 348.3605316001096], [0.0, 0.0, 1.0]])
-D=numpy.array([[-0.019215744220979738], [-0.022168383678588813], [0.018999857407644722], [-0.003693599912847022]])
+scaled_K=np.array([[598.1749329148429, 0.0, 721.6507201967044], [0.0, 599.1750083243568, 516.6649311147231], [0.0, 0.0, 1.0]])
+new_K=np.array([[106.3916735637625, 0.0, 506.2592266493841], [0.0, 106.56954744421695, 348.3605316001096], [0.0, 0.0, 1.0]])
+D=np.array([[-0.019215744220979738], [-0.022168383678588813], [0.018999857407644722], [-0.003693599912847022]])
 
 robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
 
