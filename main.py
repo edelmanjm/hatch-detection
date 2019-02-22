@@ -200,12 +200,17 @@ def main():
 
         count = 0
         # capture frames from the camera
+        last_time = time.time()
         for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
             # FIXME Temporary hack-y hack
             thing.process_frame(frame.array)
 
             # clear the stream in preparation for the next frame
             rawCapture.truncate(0)
+            current_time = time.time()
+            print("Loop time: " + str(round((current_time - last_time) * 1000, 3)) + "ms")
+            last_time = current_time
+
 
             # count += 1
 
