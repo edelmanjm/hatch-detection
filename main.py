@@ -65,6 +65,34 @@ def find_hatches(source, draw=False):
     return img, contours, centers
 
 
+def find_vision_target_simple(source, draw=False):
+    # TODO apply robot mask
+    first_contours = vision_target_pipeline_2.process(source, None)
+
+    first_bounding_rects = processors.find_bounding_rects(first_contours)
+    first_centers = processors.find_bounding_centers(first_bounding_rects)
+
+    # Find the two centers closed to the center of the image
+    closest_distance = None
+    closest_bounding_rects = [None, None]
+    for i, center in enumerate(first_centers):
+        distance = math.sqrt((center[0] - w_low / 2)**2 + (center[1] - h_low / 2)**2)
+        if closest_bounding_rects[1] is None or distance < closest_distance:
+            closest_bounding_rects[1] = closest_bounding_rects[0]
+            closest_bounding_rects[0] = first_bounding_rects[i]
+            closest_distance = distance
+
+    if closest_bounding_rects[1] is not None:
+
+        if draw:
+            processors.draw_contours_and_centers(source, first_contours, first_centers)
+
+        # return masked, second_contours, second_centers
+        return source, first_contours, first_centers
+    else:
+        return source, [], []
+
+
 def find_vision_target(source, draw=False):
 
     # TODO apply robot mask
