@@ -12,10 +12,10 @@ import os
 # from pycallgraph import Config
 
 # Aspect ratio must be the same
-w = 1440
-h = 1080
-w_low = 180
-h_low = 135
+w = 640
+h = 480
+w_low = 90
+h_low = 68
 w_max_process = w_low
 h_max_process = h_low
 
