@@ -140,7 +140,7 @@ def find_vision_target(source, draw=False):
             second_image = cv2.resize(masked,
                                       (int(round((x1 - x0) * max_process_limit_factor)),
                                        int(round((y1 - y0) * max_process_limit_factor))),
-                                      interpolation=cv2.INTER_LINEAR)
+                                      interpolation=cv2.INTER_NEAREST)
         else:
             second_image = masked
         second_contours = vision_target_pipeline_2.process(second_image, None)
