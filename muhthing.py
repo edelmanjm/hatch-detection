@@ -44,11 +44,10 @@ class MuhThing:
             if self.scaled_K is not None and self.dist_coefficients is not None:
                 # FIXME appears to not be normalizing the points now
                 cv2.undistortPoints(undistorted_centers, self.scaled_K, self.dist_coefficients, undistorted_centers, np.eye(3), self.new_K)
-
             # Scale the centers into -1.0 to 1.0
             for center in undistorted_centers[0]:
-                center[0] = center[0] / 1440 * 2 - 1
-                center[1] = center[1] / 1080 * 2 - 1
+                center[0] = center[0] / self.dimensions[0] * 2 - 1
+                center[1] = center[1] / self.dimensions[1] * 2 - 1
         else:
             # print("None")
             pass
