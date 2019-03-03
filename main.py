@@ -19,7 +19,7 @@ h_low = 68
 w_max_process = w_low
 h_max_process = h_low
 
-framerate = 30
+framerate = 90
 crop_margin = 10
 
 hatch_panel_pipeline = filterhatchpanel.GripPipeline()
@@ -45,8 +45,8 @@ D=np.array([[-0.019215744220979738], [-0.022168383678588813], [0.018999857407644
 
 robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
 
-stream_url = "http://10.15.40.202:9001/cam.mjpg"
-# stream_url = ""
+# stream_url = "http://10.15.40.202:9001/cam.mjpg"
+stream_url = ""
 
 
 def find_hatches(source, draw=False):
@@ -111,13 +111,12 @@ def find_vision_target(source, draw=False):
             closest_bounding_rects[0] = first_bounding_rects[i]
             closest_distance = distance
 
-
-    # TODO remove because we'll be better
-    # If the closest ones are too close to the edge, just don't bother
-    if closest_distance > math.sqrt((w/3)**2 + (h/3)**2):
-        return source, [], []
-
     if closest_bounding_rects[1] is not None:
+
+        # TODO remove because we'll be better
+        # If the closest ones are too close to the edge, just don't bother
+        if closest_distance > math.sqrt((w / 3) ** 2 + (h / 3) ** 2):
+            return source, [], []
 
         x0 = min(closest_bounding_rects[0][0], closest_bounding_rects[1][0]) / w_low * w - crop_margin
         x1 = max(closest_bounding_rects[0][0] + closest_bounding_rects[0][2], closest_bounding_rects[1][0] + closest_bounding_rects[1][2]) / w_low * w + crop_margin
