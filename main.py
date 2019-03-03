@@ -39,8 +39,8 @@ warp = cv2.getPerspectiveTransform(
     np.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
 )
 
-scaled_K=np.array([[598.1749329148429, 0.0, 721.6507201967044], [0.0, 599.1750083243568, 516.6649311147231], [0.0, 0.0, 1.0]])
-new_K=np.array([[106.3916735637625, 0.0, 506.2592266493841], [0.0, 106.56954744421695, 348.3605316001096], [0.0, 0.0, 1.0]])
+scaled_K=np.array([[265.85552573993016, 0.0, 320.7336534207575], [0.0, 266.30000369971407, 229.6288582732103], [0.0, 0.0, 1.0]])
+new_K=np.array([[102.74003980744682, 0.0, 322.0506098667736], [0.0, 102.91180860237645, 228.98098819873323], [0.0, 0.0, 1.0]])
 D=np.array([[-0.019215744220979738], [-0.022168383678588813], [0.018999857407644722], [-0.003693599912847022]])
 
 robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
@@ -110,6 +110,12 @@ def find_vision_target(source, draw=False):
             closest_bounding_rects[1] = closest_bounding_rects[0]
             closest_bounding_rects[0] = first_bounding_rects[i]
             closest_distance = distance
+
+
+    # TODO remove because we'll be better
+    # If the closest ones are too close to the edge, just don't bother
+    if closest_distance > math.sqrt((w/3)**2 + (h/3)**2):
+        return source, [], []
 
     if closest_bounding_rects[1] is not None:
 
