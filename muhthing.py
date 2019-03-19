@@ -34,29 +34,45 @@ class MuhThing:
         processed, contours, centers = self.contour_pipeline(raw, self.draw_contours)
         self.frame = processed
 
-        # scaled_centers = []
-        undistorted_centers = None
-
+        vectors = np.empty((2, 3), dtype=np.float64)
         if len(centers) > 0:
             # Remap to 1xN 2-channel
-            undistorted_centers = np.asarray([centers], dtype=np.float32)
             # Undistort the points
             if self.scaled_K is not None and self.dist_coefficients is not None:
-                # FIXME appears to not be normalizing the points now
-                cv2.undistortPoints(undistorted_centers, self.scaled_K, self.dist_coefficients, undistorted_centers, np.eye(3), self.new_K)
-            # Scale the centers into -1.0 to 1.0
-            for center in undistorted_centers[0]:
-                center[0] = center[0] / self.dimensions[0] * 2 - 1
-                center[1] = center[1] / self.dimensions[1] * 2 - 1
+                for i, center in enumerate(centers):
+                    vectors[i] = np.matmul(
+                        # np.reshape(
+                        #     np.append(
+                        #         np.transpose(
+                        #             cv2.fisheye.undistortPoints(
+                        #                 np.array([[[100, 100]]], dtype=np.float64),
+                        #                 # np.array([[center]], dtype=np.float64),
+                        #                 self.scaled_K,
+                        #                 self.dist_coefficients
+                        #             )[0]
+                        #         ),
+                        #         1
+                        #     ),
+                        #     (1, 3)
+                        # ),
+                        np.array([[400, 400, 1]]),
+                        np.linalg.inv(
+                            self.scaled_K
+                        )
+                    )[0]
         else:
             # print("None")
             pass
 
-        # self.sd.putNumberArray(self.name + "/centers", [item for sublist in scaled_centers for item in sublist])
+        angles = np.empty((2, 1), dtype=np.float64)
+        for i, vector in enumerate(vectors):
+            angles[i] = np.rad2deg(np.arccos(np.clip(np.dot(vector, np.array([0, 0, 1], dtype=np.float64)) / (np.linalg.norm(vector)), -1, 1)))
+
+        # self.sd.putNumberArray("vectors", [item for sublist in vectors for item in sublist])
         final_value = []
-        if undistorted_centers is not None:
-            final_value = undistorted_centers.flatten()
-        self.sd.putNumberArray("centers", final_value)
+        if vectors is not None:
+            final_value = vectors.flatten()
+        self.sd.putNumberArray("vectors", final_value)
         NetworkTables.flush()
 
         print("Found " + str(centers.__len__()) + " targets, latency " + str(round((time.time() - start_time) * 1000)) + "ms: " + str(final_value))
