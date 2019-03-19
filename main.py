@@ -115,7 +115,7 @@ def find_vision_target(source, draw=False):
 
         # TODO remove because we'll be better
         # If the closest ones are too close to the edge, just don't bother
-        if closest_distance > math.sqrt((w / 3) ** 2 + (h / 3) ** 2):
+        if closest_distance > math.sqrt((w * (3/4)) ** 2 + (h * (3/4)) ** 2):
             return source, [], []
 
         x0 = min(closest_bounding_rects[0][0], closest_bounding_rects[1][0]) / w_low * w - crop_margin
