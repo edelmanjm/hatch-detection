@@ -2,7 +2,7 @@ import time
 
 import cv2
 from grip import filterhatchpanel, filtervisiontarget, filtervisiontarget2
-import numpy
+import numpy as np
 import math
 from muhthing import MuhThing
 import processors
@@ -11,11 +11,15 @@ import os
 # from pycallgraph.output import GraphvizOutput
 # from pycallgraph import Config
 
-w = 1440
-h = 1080
-w_low = 180
-h_low = 135
-framerate = 30
+# Aspect ratio must be the same
+w = 640
+h = 480
+w_low = 90
+h_low = 68
+w_max_process = w_low
+h_max_process = h_low
+
+framerate = 90
 crop_margin = 10
 
 hatch_panel_pipeline = filterhatchpanel.GripPipeline()
@@ -29,19 +33,19 @@ diagonal = h / math.cos(math.radians(angle))
 # vertwarp = 1 / math.tan(math.radians(angle))
 vertwarp = 1.1
 warp = cv2.getPerspectiveTransform(
-    # numpy.float32([[inset, 0], [w - inset, 0], [0, h], [w, h]]),
-    # numpy.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
-    numpy.float32([[0, 0], [w, 0], [-inset, h], [w + inset, h]]),
-    numpy.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
+    # np.float32([[inset, 0], [w - inset, 0], [0, h], [w, h]]),
+    # np.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
+    np.float32([[0, 0], [w, 0], [-inset, h], [w + inset, h]]),
+    np.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
 )
 
-scaled_K=numpy.array([[598.1749329148429, 0.0, 721.6507201967044], [0.0, 599.1750083243568, 516.6649311147231], [0.0, 0.0, 1.0]])
-new_K=numpy.array([[231.16508956675534, 0.0, 724.6138722002406], [0.0, 231.55156935534703, 515.2072234471497], [0.0, 0.0, 1.0]])
-D=numpy.array([[-0.019215744220979738], [-0.022168383678588813], [0.018999857407644722], [-0.003693599912847022]])
+scaled_K=np.array([[265.85552573993016, 0.0, 320.7336534207575], [0.0, 266.30000369971407, 229.6288582732103], [0.0, 0.0, 1.0]])
+new_K=np.array([[102.74003980744682, 0.0, 322.0506098667736], [0.0, 102.91180860237645, 228.98098819873323], [0.0, 0.0, 1.0]])
+D=np.array([[-0.019215744220979738], [-0.022168383678588813], [0.018999857407644722], [-0.003693599912847022]])
 
 robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
 
-# stream_url = "http://10.20.175.6:9001/cam.mjpg"
+# stream_url = "http://10.15.40.202:9001/cam.mjpg"
 stream_url = ""
 
 
@@ -59,6 +63,34 @@ def find_hatches(source, draw=False):
     img = cv2.warpPerspective(img, cv2.invert(warp)[1], (w, h))
 
     return img, contours, centers
+
+
+def find_vision_target_simple(source, draw=False):
+    # TODO apply robot mask
+    first_contours = vision_target_pipeline_2.process(source, None)
+
+    first_bounding_rects = processors.find_bounding_rects(first_contours)
+    first_centers = processors.find_bounding_centers(first_bounding_rects)
+
+    # Find the two centers closed to the center of the image
+    closest_distance = None
+    closest_bounding_rects = [None, None]
+    for i, center in enumerate(first_centers):
+        distance = math.sqrt((center[0] - w_low / 2)**2 + (center[1] - h_low / 2)**2)
+        if closest_bounding_rects[1] is None or distance < closest_distance:
+            closest_bounding_rects[1] = closest_bounding_rects[0]
+            closest_bounding_rects[0] = first_bounding_rects[i]
+            closest_distance = distance
+
+    if closest_bounding_rects[1] is not None:
+
+        if draw:
+            processors.draw_contours_and_centers(source, first_contours, first_centers)
+
+        # return masked, second_contours, second_centers
+        return source, first_contours, first_centers
+    else:
+        return source, [], []
 
 
 def find_vision_target(source, draw=False):
@@ -81,6 +113,11 @@ def find_vision_target(source, draw=False):
 
     if closest_bounding_rects[1] is not None:
 
+        # TODO remove because we'll be better
+        # If the closest ones are too close to the edge, just don't bother
+        if closest_distance > math.sqrt((w * (3/4)) ** 2 + (h * (3/4)) ** 2):
+            return source, [], []
+
         x0 = min(closest_bounding_rects[0][0], closest_bounding_rects[1][0]) / w_low * w - crop_margin
         x1 = max(closest_bounding_rects[0][0] + closest_bounding_rects[0][2], closest_bounding_rects[1][0] + closest_bounding_rects[1][2]) / w_low * w + crop_margin
         y0 = min(closest_bounding_rects[0][1], closest_bounding_rects[1][1]) / h_low * h - crop_margin
@@ -102,17 +139,26 @@ def find_vision_target(source, draw=False):
 
         # TODO mask of parts around the targets
         masked = source[y0:y1, x0:x1]
-        second_contours = vision_target_pipeline_2.process(masked, None)
+        max_process_limit_factor = 1
+        if y1 - y0 > h_max_process or x1 - x0 > w_max_process:
+            max_process_limit_factor = min(w_max_process / (x1 - x0), h_max_process / (y1 - y0))
+            second_image = cv2.resize(masked,
+                                      (int(round((x1 - x0) * max_process_limit_factor)),
+                                       int(round((y1 - y0) * max_process_limit_factor))),
+                                      interpolation=cv2.INTER_NEAREST)
+        else:
+            second_image = masked
+        second_contours = vision_target_pipeline_2.process(second_image, None)
         second_centers = processors.find_bounding_centers(processors.find_bounding_rects(second_contours))
 
         # Transform centers and contours so they're relative to the source image instead of the copped image
         for contour in second_contours:
             for point in contour:
-                point[0][0] += x0
-                point[0][1] += y0
+                point[0][0] = point[0][0] * (1 / max_process_limit_factor) + x0
+                point[0][1] = point[0][1] * (1 / max_process_limit_factor) + y0
         for center in second_centers:
-            center[0] += x0
-            center[1] += y0
+            center[0] = center[0] * (1 / max_process_limit_factor) + x0
+            center[1] = center[1] * (1 / max_process_limit_factor) + y0
 
         if draw:
             processors.draw_contours_and_centers(source, second_contours, second_centers)
@@ -149,6 +195,8 @@ def main():
         camera.framerate = framerate
         camera.exposure_mode = 'off'
         camera.shutter_speed = 7000
+        camera.awb_mode = 'off'
+        camera.awb_gains = (1.2, 1.9)
 
         rawCapture = PiRGBArray(camera, size=(w, h))
 
@@ -157,12 +205,16 @@ def main():
 
         count = 0
         # capture frames from the camera
+        last_time = time.time()
         for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-            # FIXME Temporary hack-y hack
-            thing.process_frame(cv2.resize(frame.array, (w, h), interpolation=cv2.INTER_LINEAR))
+            thing.process_frame(frame.array)
 
             # clear the stream in preparation for the next frame
             rawCapture.truncate(0)
+            current_time = time.time()
+            print("Loop time: " + str(round((current_time - last_time) * 1000, 3)) + "ms")
+            last_time = current_time
+
 
             # count += 1
 
