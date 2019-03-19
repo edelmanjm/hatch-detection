@@ -3,6 +3,7 @@ assert cv2.__version__[0] == '3', 'The fisheye module requires opencv version >=
 import numpy as np
 import os
 import glob
+import random
 CHECKERBOARD = (6,9)
 subpix_criteria = (cv2.TERM_CRITERIA_EPS+cv2.TERM_CRITERIA_MAX_ITER, 30, 0.1)
 calibration_flags = cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC+cv2.fisheye.CALIB_CHECK_COND+cv2.fisheye.CALIB_FIX_SKEW
@@ -12,6 +13,10 @@ _img_shape = None
 objpoints = [] # 3d point in real world space
 imgpoints = [] # 2d points in image plane.
 images = glob.glob('*.jpg')
+a = random.randint(0, images.__len__())
+b = random.randint(0, images.__len__())
+low, high = (a, b) if a < b else (b, a)
+images = images[low:high]
 for fname in images:
     img = cv2.imread(fname)
     if _img_shape == None:
@@ -26,6 +31,8 @@ for fname in images:
         objpoints.append(objp)
         cv2.cornerSubPix(gray,corners,(3,3),(-1,-1),subpix_criteria)
         imgpoints.append(corners)
+    else:
+        print(fname)
 N_OK = len(objpoints)
 K = np.zeros((3, 3))
 D = np.zeros((4, 1))
