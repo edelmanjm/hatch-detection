@@ -1,5 +1,7 @@
 import numpy as np
 from networktables import NetworkTables
+
+import processors
 from mjpegserver import ThreadedHTTPServer, CamHandler
 import threading
 import time
@@ -31,8 +33,10 @@ class MuhThing:
 
     def process_frame(self, raw):
         start_time = time.time()
-        processed, contours, centers = self.contour_pipeline(raw, self.draw_contours)
+        processed, contours, centers = self.contour_pipeline(raw)
         self.frame = processed
+        if self.draw_contours:
+            processors.draw_contours_and_centers(self.frame, contours, centers)
 
         vectors = np.empty((2, 3), dtype=np.float64)
         angles = np.empty((2, 1), dtype=np.float64)

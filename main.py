@@ -49,15 +49,13 @@ robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
 stream_url = ""
 
 
-def find_hatches(source, draw=False):
+def find_hatches(source):
     # Flatten the image
     img = cv2.warpPerspective(source, warp, (w, int(h * vertwarp)))
 
     # Detect the panels and find the centers
     contours = hatch_panel_pipeline.process(img)
     centers = processors.find_bounding_centers(contours)
-    if draw:
-        processors.draw_contours_and_centers(img, contours, centers)
 
     # Warp the image and back to the original
     img = cv2.warpPerspective(img, cv2.invert(warp)[1], (w, h))
@@ -65,7 +63,7 @@ def find_hatches(source, draw=False):
     return img, contours, centers
 
 
-def find_vision_target_simple(source, draw=False):
+def find_vision_target_simple(source):
     # TODO apply robot mask
     first_contours = vision_target_pipeline_2.process(source, None)
 
@@ -84,16 +82,13 @@ def find_vision_target_simple(source, draw=False):
 
     if closest_bounding_rects[1] is not None:
 
-        if draw:
-            processors.draw_contours_and_centers(source, first_contours, first_centers)
-
         # return masked, second_contours, second_centers
         return source, first_contours, first_centers
     else:
         return source, [], []
 
 
-def find_vision_target(source, draw=False):
+def find_vision_target(source):
 
     # TODO apply robot mask
     first_contours = vision_target_pipeline_1.process(source)
@@ -159,9 +154,6 @@ def find_vision_target(source, draw=False):
         for center in second_centers:
             center[0] = center[0] * (1 / max_process_limit_factor) + x0
             center[1] = center[1] * (1 / max_process_limit_factor) + y0
-
-        if draw:
-            processors.draw_contours_and_centers(source, second_contours, second_centers)
 
         # return masked, second_contours, second_centers
         return source, second_contours, second_centers
