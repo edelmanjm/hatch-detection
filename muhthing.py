@@ -1,5 +1,7 @@
 import numpy as np
 from networktables import NetworkTables
+
+import processors
 from mjpegserver import ThreadedHTTPServer, CamHandler
 import threading
 import time
@@ -20,6 +22,7 @@ class MuhThing:
         self.draw_contours = draw_contours
         self.frame = np.zeros((dimensions[1], dimensions[0], 3), np.uint8)
 
+        # self.map1, self.map2 = cv2.fisheye.initUndistortRectifyMap(scaled_K, dist_coefficients, np.eye(3), new_K, dimensions, cv2.CV_16SC2)
         # dimensions_undistorted = np.zeros((1, 2, 2), dtype=np.float32)
         # original_dimensions = np.array([[[0, 0], [dimensions[0], dimensions[1]]]], dtype=np.float32)
         # cv2.undistortPoints(original_dimensions,
@@ -31,32 +34,60 @@ class MuhThing:
 
     def process_frame(self, raw):
         start_time = time.time()
-        processed, contours, centers = self.contour_pipeline(raw, self.draw_contours)
+        processed, contours, centers = self.contour_pipeline(raw)
         self.frame = processed
+        # self.frame = cv2.remap(processed, self.map1, self.map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+        if self.draw_contours:
+            processors.draw_contours_and_centers(self.frame, contours, centers)
+            # processors.draw_contours_and_centers(self.frame, None, cv2.fisheye.undistortPoints(
+            #                     np.array([centers], dtype=np.float64),
+            #                     self.scaled_K,
+            #                     self.dist_coefficients,
+            #                     R=np.eye(3),
+            #                     P=self.new_K
+            #                 )[0])
 
-        # scaled_centers = []
-        undistorted_centers = None
+        final_value = []
 
-        if len(centers) > 0:
+        if len(centers) == 2:
+
+            vectors = np.empty((2, 3), dtype=np.float64)
+            # angles = np.empty((2, 1), dtype=np.float64)
+
             # Remap to 1xN 2-channel
-            undistorted_centers = np.asarray([centers], dtype=np.float32)
             # Undistort the points
             if self.scaled_K is not None and self.dist_coefficients is not None:
-                # FIXME appears to not be normalizing the points now
-                cv2.undistortPoints(undistorted_centers, self.scaled_K, self.dist_coefficients, undistorted_centers, np.eye(3), self.new_K)
-            # Scale the centers into -1.0 to 1.0
-            for center in undistorted_centers[0]:
-                center[0] = center[0] / self.dimensions[0] * 2 - 1
-                center[1] = center[1] / self.dimensions[1] * 2 - 1
+                for i, center in enumerate(centers):
+                    vectors[i] = np.matmul(
+                        np.linalg.inv(
+                            self.new_K
+                        ),
+                        # np.array([320, 240, 1])
+                        np.append(
+                            cv2.fisheye.undistortPoints(
+                                np.array([[center]], dtype=np.float64),
+                                self.scaled_K,
+                                self.dist_coefficients,
+                                R=np.eye(3),
+                                P=self.new_K
+                            )[0][0],
+                            1
+                        ),
+                    )
+
+            # for i, vector in enumerate(vectors):
+            #     angles[i] = np.rad2deg(np.arctan(vector[0] / vector[2]))
+            #     # angles[i] = np.rad2deg(np.arccos(
+            #     #     np.clip(np.dot(vector, np.array([0, 0, 1], dtype=np.float64)) / (np.linalg.norm(vector)), -1, 1)))
+
+            final_value = vectors.flatten()
+
         else:
             # print("None")
             pass
 
-        # self.sd.putNumberArray(self.name + "/centers", [item for sublist in scaled_centers for item in sublist])
-        final_value = []
-        if undistorted_centers is not None:
-            final_value = undistorted_centers.flatten()
-        self.sd.putNumberArray("centers", final_value)
+        # self.sd.putNumberArray("vectors", [item for sublist in vectors for item in sublist])
+        self.sd.putNumberArray("vectors", final_value)
         NetworkTables.flush()
 
         print("Found " + str(centers.__len__()) + " targets, latency " + str(round((time.time() - start_time) * 1000)) + "ms: " + str(final_value))

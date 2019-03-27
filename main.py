@@ -39,25 +39,24 @@ warp = cv2.getPerspectiveTransform(
     np.float32([[0, 0], [w, 0], [0, h * vertwarp], [w, h * vertwarp]])
 )
 
-scaled_K=np.array([[265.85552573993016, 0.0, 320.7336534207575], [0.0, 266.30000369971407, 229.6288582732103], [0.0, 0.0, 1.0]])
-new_K=np.array([[102.74003980744682, 0.0, 322.0506098667736], [0.0, 102.91180860237645, 228.98098819873323], [0.0, 0.0, 1.0]])
-D=np.array([[-0.019215744220979738], [-0.022168383678588813], [0.018999857407644722], [-0.003693599912847022]])
+scaled_K=np.array([[337.96669256003423, 0.0, 298.6639042576305], [0.0, 338.49353082497515, 235.04426655713644], [0.0, 0.0, 1.0]])
+new_K=np.array([[163.96201251537047, 0.0, 283.0155708637292], [0.0, 164.21760415824954, 235.094308364941], [0.0, 0.0, 1.0]])
+D=np.array([[-0.11260320941729775], [0.054187476530898164], [-0.04172171303039251], [0.011310942683823726]])
 
 robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
 
-# stream_url = "http://10.15.40.202:9001/cam.mjpg"
-stream_url = ""
+stream_url = "http://10.20.150.6:1181/stream.mjpg"
+# stream_url = "http://10.20.150.6:9001/cam.mjpg"
+# stream_url = ""
 
 
-def find_hatches(source, draw=False):
+def find_hatches(source):
     # Flatten the image
     img = cv2.warpPerspective(source, warp, (w, int(h * vertwarp)))
 
     # Detect the panels and find the centers
     contours = hatch_panel_pipeline.process(img)
     centers = processors.find_bounding_centers(contours)
-    if draw:
-        processors.draw_contours_and_centers(img, contours, centers)
 
     # Warp the image and back to the original
     img = cv2.warpPerspective(img, cv2.invert(warp)[1], (w, h))
@@ -65,7 +64,7 @@ def find_hatches(source, draw=False):
     return img, contours, centers
 
 
-def find_vision_target_simple(source, draw=False):
+def find_vision_target_simple(source):
     # TODO apply robot mask
     first_contours = vision_target_pipeline_2.process(source, None)
 
@@ -84,16 +83,13 @@ def find_vision_target_simple(source, draw=False):
 
     if closest_bounding_rects[1] is not None:
 
-        if draw:
-            processors.draw_contours_and_centers(source, first_contours, first_centers)
-
         # return masked, second_contours, second_centers
         return source, first_contours, first_centers
     else:
         return source, [], []
 
 
-def find_vision_target(source, draw=False):
+def find_vision_target(source):
 
     # TODO apply robot mask
     first_contours = vision_target_pipeline_1.process(source)
@@ -160,9 +156,6 @@ def find_vision_target(source, draw=False):
             center[0] = center[0] * (1 / max_process_limit_factor) + x0
             center[1] = center[1] * (1 / max_process_limit_factor) + y0
 
-        if draw:
-            processors.draw_contours_and_centers(source, second_contours, second_centers)
-
         # return masked, second_contours, second_centers
         return source, second_contours, second_centers
     else:
@@ -179,7 +172,7 @@ def main():
 
     print("Starting")
 
-    thing = MuhThing(find_vision_target, "raspi-2", [w, h], scaled_K=scaled_K, new_K=new_K, dist_coefficients=D, cam_stream=True, draw_contours=True)
+    thing = MuhThing(find_vision_target, "raspi-2", (w, h), scaled_K=scaled_K, new_K=new_K, dist_coefficients=D, cam_stream=True, draw_contours=True)
     thing.start()
 
 
