@@ -22,6 +22,7 @@ class MuhThing:
         self.draw_contours = draw_contours
         self.frame = np.zeros((dimensions[1], dimensions[0], 3), np.uint8)
 
+        # self.map1, self.map2 = cv2.fisheye.initUndistortRectifyMap(scaled_K, dist_coefficients, np.eye(3), new_K, dimensions, cv2.CV_16SC2)
         # dimensions_undistorted = np.zeros((1, 2, 2), dtype=np.float32)
         # original_dimensions = np.array([[[0, 0], [dimensions[0], dimensions[1]]]], dtype=np.float32)
         # cv2.undistortPoints(original_dimensions,
@@ -35,25 +36,35 @@ class MuhThing:
         start_time = time.time()
         processed, contours, centers = self.contour_pipeline(raw)
         self.frame = processed
+        # self.frame = cv2.remap(processed, self.map1, self.map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
         if self.draw_contours:
             processors.draw_contours_and_centers(self.frame, contours, centers)
+            # processors.draw_contours_and_centers(self.frame, None, cv2.fisheye.undistortPoints(
+            #                     np.array([centers], dtype=np.float64),
+            #                     self.scaled_K,
+            #                     self.dist_coefficients,
+            #                     R=np.eye(3),
+            #                     P=self.new_K
+            #                 )[0])
 
-        vectors = np.empty((2, 3), dtype=np.float64)
-        angles = np.empty((2, 1), dtype=np.float64)
+        final_value = []
 
         if len(centers) == 2:
+
+            vectors = np.empty((2, 3), dtype=np.float64)
+            # angles = np.empty((2, 1), dtype=np.float64)
+
             # Remap to 1xN 2-channel
             # Undistort the points
             if self.scaled_K is not None and self.dist_coefficients is not None:
                 for i, center in enumerate(centers):
                     vectors[i] = np.matmul(
                         np.linalg.inv(
-                            self.scaled_K
+                            self.new_K
                         ),
                         # np.array([320, 240, 1])
                         np.append(
                             cv2.fisheye.undistortPoints(
-                                # np.array([[[100, 100]]], dtype=np.float64),
                                 np.array([[center]], dtype=np.float64),
                                 self.scaled_K,
                                 self.dist_coefficients,
@@ -64,22 +75,22 @@ class MuhThing:
                         ),
                     )
 
-            for i, vector in enumerate(vectors):
-                angles[i] = np.rad2deg(np.arctan(vector[0] / vector[2]))
-                # angles[i] = np.rad2deg(np.arccos(
-                #     np.clip(np.dot(vector, np.array([0, 0, 1], dtype=np.float64)) / (np.linalg.norm(vector)), -1, 1)))
+            # for i, vector in enumerate(vectors):
+            #     angles[i] = np.rad2deg(np.arctan(vector[0] / vector[2]))
+            #     # angles[i] = np.rad2deg(np.arccos(
+            #     #     np.clip(np.dot(vector, np.array([0, 0, 1], dtype=np.float64)) / (np.linalg.norm(vector)), -1, 1)))
+
+            final_value = vectors.flatten()
+
         else:
             # print("None")
             pass
 
         # self.sd.putNumberArray("vectors", [item for sublist in vectors for item in sublist])
-        final_value = []
-        if vectors is not None:
-            final_value = vectors.flatten()
         self.sd.putNumberArray("vectors", final_value)
         NetworkTables.flush()
 
-        print("Found " + str(centers.__len__()) + " targets, latency " + str(round((time.time() - start_time) * 1000)) + "ms: " + str(angles.flatten()))
+        print("Found " + str(centers.__len__()) + " targets, latency " + str(round((time.time() - start_time) * 1000)) + "ms: " + str(final_value))
 
     def start(self):
 
