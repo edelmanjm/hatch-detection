@@ -171,7 +171,7 @@ def main():
 
     print("Starting")
 
-    thing = MuhThing(find_vision_target, "raspi-2", [w, h], scaled_K=scaled_K, new_K=new_K, dist_coefficients=D, cam_stream=True, draw_contours=True)
+    thing = MuhThing(find_vision_target, "raspi-2", (w, h), scaled_K=scaled_K, new_K=new_K, dist_coefficients=D, cam_stream=True, draw_contours=True)
     thing.start()
 
 
