@@ -49,9 +49,9 @@ class MuhThing:
 
         final_value = []
 
-        if len(centers) == 2:
+        if len(centers) >= 2:
 
-            vectors = np.empty((2, 3), dtype=np.float64)
+            vectors = np.empty((len(centers), 3), dtype=np.float64)
             # angles = np.empty((2, 1), dtype=np.float64)
 
             # Remap to 1xN 2-channel

@@ -48,7 +48,7 @@ robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
 # stream_url = "http://10.20.150.6:1181/stream.mjpg"
 # stream_url = "http://10.20.150.6:9001/cam.mjpg"
 # stream_url = ""
-stream_url = "/Users/Jonathan/Desktop/dumb-targets.png"
+stream_url = "/Users/Jonathan/Desktop/dumb-targets-2.png"
 
 
 def find_hatches(source):
@@ -101,7 +101,7 @@ def find_vision_target(source):
     list.sort(first_rotated_bounding_rects, key=lambda rect:rect[0][0])
     filtered_first_bounding_rects = []
     i = 0
-    while i < len(first_rotated_bounding_rects):
+    while i + 1 < len(first_rotated_bounding_rects):
         # OpenCV does the angle calculation really weirdly. See stackoverflow.com/questions/15956124
         # Basically tho, we can use the width and height to determine which way it's rotated, and therefore, if it's
         # left or right
@@ -141,6 +141,8 @@ def find_vision_target(source):
         else:
             second_image = masked
         second_contours = vision_target_pipeline_2.process(second_image, None)
+
+        # TODO allow disabling of contour redrawing for speed reasons
 
         if second_contours:
             # TODO see if there's a better way of choosing the one best contour
