@@ -5,6 +5,10 @@ def find_bounding_rects(contours):
     return [cv2.boundingRect(contour) for contour in contours]
 
 
+def find_rotated_bounding_rects(contours):
+    return [cv2.minAreaRect(contour) for contour in contours]
+
+
 def find_bounding_centers(bounding_rects):
     centers = []
     for br_x, br_y, br_w, br_h in bounding_rects:
