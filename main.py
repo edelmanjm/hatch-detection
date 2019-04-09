@@ -45,9 +45,10 @@ D=np.array([[-0.11260320941729775], [0.054187476530898164], [-0.0417217130303925
 
 robot_mask = cv2.imread("./grip/robot_mask.png", cv2.IMREAD_REDUCED_GRAYSCALE_2)
 
-stream_url = "http://10.20.150.6:1181/stream.mjpg"
+# stream_url = "http://10.20.150.6:1181/stream.mjpg"
 # stream_url = "http://10.20.150.6:9001/cam.mjpg"
 # stream_url = ""
+stream_url = "/Users/Jonathan/Desktop/dumb-targets-2.png"
 
 
 def find_hatches(source):
@@ -93,36 +94,32 @@ def find_vision_target(source):
 
     # TODO apply robot mask
     first_contours = vision_target_pipeline_1.process(source)
+    first_bounding_rect = processors.find_bounding_rects(first_contours)
+    first_rotated_bounding_rects = processors.find_rotated_bounding_rects(first_contours)
 
-    first_bounding_rects = processors.find_bounding_rects(first_contours)
-    first_centers = processors.find_bounding_centers(first_bounding_rects)
+    # Because at this size, who really cares what sorting algorthim gets used
+    list.sort(first_rotated_bounding_rects, key=lambda rect:rect[0][0])
+    filtered_first_bounding_rects = []
+    i = 0
+    while i + 1 < len(first_rotated_bounding_rects):
+        # OpenCV does the angle calculation really weirdly. See stackoverflow.com/questions/15956124
+        # Basically tho, we can use the width and height to determine which way it's rotated, and therefore, if it's
+        # left or right
+        if first_rotated_bounding_rects[i][1][0] > first_rotated_bounding_rects[i][1][1]:
+            if first_rotated_bounding_rects[i+1][1][0] < first_rotated_bounding_rects[i+1][1][1]:
+                filtered_first_bounding_rects.append(first_bounding_rect[i])
+                filtered_first_bounding_rects.append(first_bounding_rect[i+1])
+            i += 2
+        else:
+            i += 1
 
-    # Find the two centers closed to the center of the image
-    closest_distance = None
-    closest_bounding_rects = [None, None]
-    for i, center in enumerate(first_centers):
-        distance = math.sqrt((center[0] - w_low / 2)**2 + (center[1] - h_low / 2)**2)
-        if closest_bounding_rects[1] is None or distance < closest_distance:
-            closest_bounding_rects[1] = closest_bounding_rects[0]
-            closest_bounding_rects[0] = first_bounding_rects[i]
-            closest_distance = distance
-
-    if closest_bounding_rects[1] is not None:
-
-        # TODO remove because we'll be better
-        # If the closest ones are too close to the edge, just don't bother
-        if closest_distance > math.sqrt((w * (3/4)) ** 2 + (h * (3/4)) ** 2):
-            return source, [], []
-
-        x0 = min(closest_bounding_rects[0][0], closest_bounding_rects[1][0]) / w_low * w - crop_margin
-        x1 = max(closest_bounding_rects[0][0] + closest_bounding_rects[0][2], closest_bounding_rects[1][0] + closest_bounding_rects[1][2]) / w_low * w + crop_margin
-        y0 = min(closest_bounding_rects[0][1], closest_bounding_rects[1][1]) / h_low * h - crop_margin
-        y1 = max(closest_bounding_rects[0][1] + closest_bounding_rects[0][3], closest_bounding_rects[1][1] + closest_bounding_rects[1][3]) / h_low * h + crop_margin
-
-        x0 = int(round(x0))
-        x1 = int(round(x1))
-        y0 = int(round(y0))
-        y1 = int(round(y1))
+    target_contours = []
+    for first_bounding_rect in filtered_first_bounding_rects:
+        # Mask
+        x0 = int(round(first_bounding_rect[0] / w_low * w - crop_margin))
+        x1 = int(round((first_bounding_rect[0] + first_bounding_rect[2]) / w_low * w + crop_margin))
+        y0 = int(round(first_bounding_rect[1] / h_low * h - crop_margin))
+        y1 = int(round((first_bounding_rect[1] + first_bounding_rect[3]) / h_low * h + crop_margin))
 
         if x0 < 0:
             x0 = 0
@@ -133,7 +130,6 @@ def find_vision_target(source):
         if y1 > h:
             y1 = h
 
-        # TODO mask of parts around the targets
         masked = source[y0:y1, x0:x1]
         max_process_limit_factor = 1
         if y1 - y0 > h_max_process or x1 - x0 > w_max_process:
@@ -145,21 +141,20 @@ def find_vision_target(source):
         else:
             second_image = masked
         second_contours = vision_target_pipeline_2.process(second_image, None)
-        second_centers = processors.find_bounding_centers(processors.find_bounding_rects(second_contours))
 
-        # Transform centers and contours so they're relative to the source image instead of the copped image
-        for contour in second_contours:
-            for point in contour:
+        # TODO allow disabling of contour redrawing for speed reasons
+
+        if second_contours:
+            # TODO see if there's a better way of choosing the one best contour
+            target_contour = second_contours[0]
+            # Transform contours so they're relative to the source image instead of the copped image
+            for point in target_contour:
                 point[0][0] = point[0][0] * (1 / max_process_limit_factor) + x0
                 point[0][1] = point[0][1] * (1 / max_process_limit_factor) + y0
-        for center in second_centers:
-            center[0] = center[0] * (1 / max_process_limit_factor) + x0
-            center[1] = center[1] * (1 / max_process_limit_factor) + y0
 
-        # return masked, second_contours, second_centers
-        return source, second_contours, second_centers
-    else:
-        return source, [], []
+            target_contours.append(target_contour)
+
+    return source, target_contours, processors.find_bounding_centers(processors.find_bounding_rects(target_contours))
 
 
 def do_nothing(source, draw=False):
